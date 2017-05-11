@@ -67,7 +67,7 @@ class PowerController:
 		GPIO.output( 22, True )
 		time.sleep( 0.25 )
 		GPIO.output( 22, False )
-
+"""
 Controller = PowerController()
 Controller.setPlugOn( "ALL" )
 time.sleep(1)
@@ -90,3 +90,4 @@ time.sleep(1)
 Controller.setPlugOff( "1" )
 time.sleep(1)
 Controller.resetTX()
+"""
