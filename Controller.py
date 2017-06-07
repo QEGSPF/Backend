@@ -2,15 +2,16 @@
 import RPi.GPIO as GPIO
 import time
 
-class PowerController:
+class SocketController:
 	def __init__( self ):
 		# set the pins numbering mode
-		GPIO.setmode(GPIO.BOARD)
-	
-		self.__controlPins = [11, 15, 16, 13]
+		# But don't because that's done elsewhere
+		#GPIO.setmode( GPIO.BOARD )
+
+		self.control_pins = [ 11, 15, 16, 13 ]
 
 		# Select the GPIO pins used for the encoder K0-K3 data inputs	
-		for pin in self.__controlPins:
+		for pin in control_pins:
 			GPIO.setup( pin, GPIO.OUT )
 			GPIO.output( pin, False )	
 
@@ -18,76 +19,62 @@ class PowerController:
 		GPIO.setup( 18, GPIO.OUT ) 
 		# Set the modulator to ASK for On Off Keying 
 		GPIO.output( 18, False )
-	
+
 		# Select the signal used to enable/disable the monitor	
-		GPIO.setup(22, GPIO.OUT)
+		GPIO.setup( 22, GPIO.OUT )
 		# Disable the modulator by setting CE pin lo
-		GPIO.output (22, False)
-		
-		self.__setup = [
-			{
-				"ALL": [1,1,0,1],
-				"1":   [1,1,1,1],
-				"2":   [0,1,1,1],
-				"3":   [1,0,1,1],
-				"4":   [0,0,1,1],
-			},
-			{
-				"ALL": [1,1,0,0],
-				"1":   [1,1,1,0],
-				"2":   [0,1,1,0],
-				"3":   [1,0,1,0],
-				"4":   [0,0,1,0],
-			}
-		]
+		GPIO.output ( 22, False )
 
-		self.__plugStatus = [0,0,0,0]
+		self.control_data = {
+			"ALL": [ 1,1,0 ],
+			"1":   [ 1,1,1 ],
+			"2":   [ 0,1,1 ],
+			"3":   [ 1,0,1 ],
+			"4":   [ 0,0,1 ],
+		}
 
-	def resetTX( self ):
-		self.setPlugOff( "ALL" )
-		for pin in self.__controlPins:
+		self.socketStatus = {
+			"1": False,
+			"2": False,
+			"3": False,
+			"4": False
+		}
+
+	def reset():
+		set_off( "ALL" )
+		for pin in self.control_pins:
 			GPIO.output( pin, False )
-
-	def setPlugOn( self, plug ):
-		currentPin = 0
-		for pin in self.__controlPins:
-			GPIO.output( pin, self.__setup[ 0 ][ plug.upper() ][ currentPin ] )
-			currentPin += 1
+		
+	def set_on( plug ):
+		if( not type( plug ) == "string" ): plug = str( plug )
+		for pin in range( 0, 2 ):
+			GPIO.output( self.control_pins[ pin  ], self.control_data[ plug.upper()  ][ pin  ] )
+		GPIO.output( 13, True )
 		time.sleep( 0.1 )
 		GPIO.output( 22, True )
 		time.sleep( 0.25 )
 		GPIO.output( 22, False )
-
-	def setPlugOff( self, plug ):
-		currentPin = 0
-		for pin in self.__controlPins:
-			GPIO.output( pin, self.__setup[ 1 ][ plug.upper() ][ currentPin ] )
-			currentPin += 1
+	
+		self.setSocketStatus( plug, True )
+		
+	def set_off( plug ):
+		if( not type( plug ) == "string" ): plug = str( plug )
+		for pin in range( 0, 2 ):
+			GPIO.output( self.control_pins[ pin  ], self.control_data[ plug.upper()  ][ pin  ] )
+		GPIO.output( 13, False )
 		time.sleep( 0.1 )
 		GPIO.output( 22, True )
 		time.sleep( 0.25 )
 		GPIO.output( 22, False )
-"""
-Controller = PowerController()
-Controller.setPlugOn( "ALL" )
-time.sleep(1)
-Controller.setPlugOff( "ALL" )
-time.sleep(1)
-Controller.setPlugOn( "1" )
-time.sleep(1)
-Controller.setPlugOn( "2" )
-time.sleep(1)
-Controller.setPlugOn( "3" )
-time.sleep(1)
-Controller.setPlugOn( "4" )
-time.sleep(1)
-Controller.setPlugOff( "4" )
-time.sleep(1)
-Controller.setPlugOff( "3" )
-time.sleep(1)
-Controller.setPlugOff( "2" )
-time.sleep(1)
-Controller.setPlugOff( "1" )
-time.sleep(1)
-Controller.resetTX()
-"""
+		
+		self.setSocketStatus( plug, False )
+		
+	def setSocketStatus( plug, state ):
+		if( plug.upper() == "ALL" ):
+			for( plug in self.SocketStatus ):
+				plug = state
+		else:
+			self.SocketStatus[ plug  ] = state
+
+	def getSocketStatus( plug ):
+		return self.SocketStatus[ plug  ]
