@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-from pmysql.cursors import DictCursor
-from pmysql import connect
 from time import time, sleep
 import RPi.GPIO as GPIO
 from Controller import SocketController
-from InputTransducers import InputTransducer, AnalougeInput, DigitalInput
+from InputTransducers import AnalougeInput, DigitalInput
+from QPFSQLDB import QPFSQLDB as db
 
 """
     System setup and configuration
@@ -29,54 +28,53 @@ MYSQL_HOST = "localhost"
 MYSQL_USER = "precision"
 MYSQL_PASS = "farming01"
 MYSQL_DBSE = "farmingdb"
+MYSQL_TABLE = "farmingtable"
 
 """
     Start the fun 
 """
-with connect( host=MYSQL_HOST, user=MYSQL_USER, password=MYSQL_PASS, db=MYSQL_DBSE, charset="utf8mb4", cursorclass=DictCursor ) as MYSQL_CONN:
+with db(MYSQL_HOST,MYSQL_USER,MYSQL_PASS,1,MYSQL_DBSE,MYSQL_TABLE,True) as MYSQL_CONN:
     with SocketController() as Controller:
         while True:
             try:
-                
+
                 startTime = time()
-                
+
                 moistureValue = 0
                 temperatureValue = 0
                 lightValue = 0
-                
+
                 with AnalougeInput( name="Light Dependent Resistor", pin=LIGHT_PIN ) as Input:
                     lightValue = Input.getValue()
                     print( "[ %s ] Reading value of: %u%s" % ( Input.name, lightValue, "" ) )
-                    
+
                     if lightValue > LIGHT_THRESHOLD:
                         Controller.set_on( LIGHT_SOCKET )
                     else:
                         Controller.set_off( LIGHT_SOCKET )
-                    
+
                 with AnalougeInput( name="Moisture Sensor", pin=MOIST_PIN ) as Input:
                     moistureValue = Input.getValue()
                     print( "[ %s ] Reading value of: %u%s" % ( Input.name, moistureValue, "" ) )
-                    
+
                     if moistureValue < PUMP_THRESHOLD:
                         Controller.set_on( PUMP_SOCKET )
                     else:
                         Controller.set_off( PUMP_SOCKET )
-                    
+
                 with DigitalInput( name="Digital Temperature Sensor", pin=TEMP_PIN ) as Input:
                     temperatureValue = Input.getValue()
                     print( "[ %s ] Reading value of: %u%s" % ( Input.name, temperatureValue, "C" ) )
-                
-                with MYSQL_CONN.cursor() as cursor:
-                    # Add record
-                    cursor.execute( "INSERT INTO `pfdata` ( `time`, `moisture`, `temperature`, `light`, `pump_on`, `light_on` ) VALUES ( NOW(), %s, %s, %s, %s, %s )", ( moistureValue, temperatureValue, lightValue, Controller.getSocketStatus( PUMP_SOCKET ), Controller.getSocketStatus( LIGHT_SOCKET ) ) )
-                    MYSQL_CONN.commit()
+
+                MYSQL_CONN.use(MYSQL_DBSE)
+                MYSQL_CONN.update(MYSQL_TABLE,moistureValue,temperatureValue,lightValue,moistureValue < PUMP_THRESHOLD,lightValue > LIGHT_THRESHOLD)
 
                 # Sleep for the remainder of 30 seconds
                 sleep( POLLING_DELAY - time() + startTime )
-                
+
             except BaseException:
                 print( "Gracefully exiting" )
                 MYSQL_CONN.close()
                 Controller.reset()
                 GPIO.cleanup()
-                break 
+                break
